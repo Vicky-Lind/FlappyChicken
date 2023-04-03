@@ -19,7 +19,7 @@ class Game:
             for i in [1, 2, 3, 4]
         ]
         self.bird_imgs = [
-            pygame.transform.rotozoom(x, 0, 1/16)
+            pygame.transform.rotozoom(x, 0, 1/16).convert_alpha()
             for x in bird_imgs
         ]
 
@@ -31,14 +31,13 @@ class Game:
             pygame.transform.rotozoom(x, 0, 600/x.get_height()).convert_alpha()
             for x in bg_imgs
         ]
-
+        self.bg_width = [x.get_width() for x in self.bg_imgs]
+        
     def init_objects(self):
         self.bird_y_speed = 0
         self.bird_pos = (200, 000)
         self.bird_lift = False
-        self.bg0_pos = 0
-        #self.bg1_pos = 0
-        self.bg2_pos = 0
+        self.bg_pos = [0, 0, 0]
 
     def run(self):
         clock = pygame.time.Clock()
@@ -66,9 +65,9 @@ class Game:
                     self.bird_lift = False
     
     def handle_game_logic(self):
-        self.bg0_pos -= 0.25
-        #self.bg1_pos -= 0.5
-        self.bg2_pos -= 2
+        self.bg_pos[0] -= 0.25
+        self.bg_pos[1] -= 0.5
+        self.bg_pos[2] -= 2
 
         bird_y = self.bird_pos[1]
         
@@ -87,9 +86,19 @@ class Game:
         # Paint background
         #self.screen.fill((230, 230, 255))
 
-        self.screen.blit(self.bg_imgs[0], (self.bg0_pos, 0))
-        #self.screen.blit(self.bg_imgs[1], (self.bg1_pos, 0))
-        self.screen.blit(self.bg_imgs[2], (self.bg2_pos, 0))
+        # Draw the parallax (3 layers)
+        for i in [0, 1, 2]:
+            # Draw the first bg "set"
+            self.screen.blit(self.bg_imgs[i], (self.bg_pos[i], 0))
+            # If the drawn set does not fill the entire screen then..
+            if self.bg_pos[i] + self.bg_width[i] < 800:
+                # .. Then draw the same set next to the previous
+                self.screen.blit(self.bg_imgs[i], (self.bg_pos[i] + self.bg_width[i], 0))
+            # If the bg has already been moved by that width..
+            if self.bg_pos[i] < -self.bg_width[i]:
+                # ..Then start from start
+                self.bg_pos[i] += self.bg_width[i]
+
         # Draw chicken
         angle = -90 * 0.04 * self.bird_y_speed
         angle = max(min(angle, 60), -60)
