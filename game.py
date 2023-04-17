@@ -4,12 +4,14 @@ import pygame
 
 DEFAULT_SCREEN_SIZE = (800, 450)
 FPS_TEXT_COLOR = (128, 0, 128)  # dark purple
+SCORE_TEXT_COLOR = (225, 42, 72)  
 TEXT_COLOR = (128, 0, 0)  # dark red
+
+DEBUG = 0
 
 def main():
     game = Game()
     game.run()
-
 
 class Game:
     def __init__(self):
@@ -36,6 +38,7 @@ class Game:
             pygame.transform.rotozoom(x, 0, self.screen_h / 9600).convert_alpha()
             for x in original_bird_images
         ]
+        self.bird_radius = self.bird_imgs[0].get_height() / 2  # Likiarvo
         original_bird_dead_images = [
             pygame.image.load(f"images/chicken/got_hit/frame-{i}.png")
             for i in [1, 2]
@@ -58,13 +61,22 @@ class Game:
         self.bg_pos = [0, 0, 0]
 
     def init_objects(self):
+        self.score = 0
         self.bird_alive = True
         self.bird_y_speed = 0
         self.bird_pos = (self.screen_w / 3, self.screen_h / 4)
         self.bird_angle = 0
         self.bird_frame = 0
         self.bird_lift = False
-        self.obstacles = [Obstacle.make_random(self.screen_w, self.screen_h)]
+        self.obstacles: list[Obstacle] = []
+        self.add_obstacle()
+
+    def add_obstacle(self):
+        obstacle = Obstacle.make_random(self.screen_w, self.screen_h)
+        self.obstacles.append(obstacle)
+
+    def remove_oldest_obstacle(self):
+        self.obstacles.pop(0)
 
     def scale_positions(self, scale_x, scale_y):
         self.bird_pos = (self.bird_pos[0] * scale_x, self.bird_pos[1] * scale_y)
@@ -143,16 +155,33 @@ class Game:
             self.bird_angle = max(min(self.bird_angle, 60), -60)
 
         # Tarkista onko lintu pudonnut maahan
-        if bird_y > self.screen_h * 0.78:
-            bird_y = self.screen_h * 0.78
+        if bird_y > self.screen_h * 0.82:
+            bird_y = self.screen_h * 0.82
             self.bird_y_speed = 0
             self.bird_alive = False
 
         # Aseta linnun x-y-koordinaatit self.bird_pos-muuttujaan
         self.bird_pos = (self.bird_pos[0], bird_y)
 
+        # Lisää uusi este, kun viimeisin este on yli ruudun puolivälin
+        if self.obstacles[-1].position < self.screen_w / 2:
+            self.add_obstacle()
+
+        # Poista vasemmanpuoleisin este, kun se menee pois ruudulta
+        if not self.obstacles[0].is_visible():
+            self.remove_oldest_obstacle()
+            self.score += 1
+
+        # Siirrä esteitä sopivalla nopeudella ja tarkista törmäys
+        self.bird_collides_with_obstacle = False
         for obstacle in self.obstacles:
-            obstacle.move(self.screen_w * 0.005)
+            if self.bird_alive:
+                obstacle.move(self.screen_w * 0.005)
+            if obstacle.collides_with_circle(self.bird_pos, self.bird_radius):
+                self.bird_collides_with_obstacle = True
+        
+        if self.bird_collides_with_obstacle:
+            self.bird_alive = False
 
     def update_screen(self):
         # Täytä tausta vaaleansinisellä
@@ -183,13 +212,28 @@ class Game:
         else:
             bird_img_i = self.bird_dead_imgs[(self.bird_frame // 10) % 2]
         bird_img = pygame.transform.rotozoom(bird_img_i, self.bird_angle, 1)
-        self.screen.blit(bird_img, self.bird_pos)
+        bird_x = self.bird_pos[0] - bird_img.get_width() / 2 * 1.25
+        bird_y = self.bird_pos[1] - bird_img.get_height() / 2
+        self.screen.blit(bird_img, (bird_x, bird_y))
 
+        # Piirrä pisteet
+        score_text = f"{self.score}"
+        score_img = self.font_big.render(score_text, True, SCORE_TEXT_COLOR)
+        score_pos = (self.screen_w * 0.95 - score_img.get_width(),
+                    self.screen_h - score_img.get_height())
+        self.screen.blit(score_img, score_pos)
+
+        # Piirrä GAME OVER -teksti
         if not self.bird_alive:
             game_over_img = self.font_big.render("GAME OVER", True, TEXT_COLOR)
             x = self.screen_w / 2 - game_over_img.get_width() / 2
             y = self.screen_h / 2 - game_over_img.get_height() / 2
             self.screen.blit(game_over_img, (x, y))
+
+        # Piirrä kehittämistä helpottava ympyrä
+        if DEBUG:
+            color = (0, 0, 0) if not self.bird_collides_with_obstacle else (255, 0, 0)
+            pygame.draw.circle(self.screen, color, self.bird_pos, self.bird_radius)
 
         # Piirrä FPS luku
         if self.show_fps:
@@ -201,25 +245,45 @@ class Game:
 
 
 class Obstacle:
-    def __init__(self, position, upper_height, lower_height, width=100):
+    def __init__(self, position, upper_height, lower_height,
+                 hole_size, width=100):
         self.position = position  # vasemman reunan sijainti
         self.upper_height = upper_height
         self.lower_height = lower_height
+        self.hole_size = hole_size
         self.width = width
         self.color = (0, 128, 0)  # dark green
 
     @classmethod
     def make_random(cls, screen_w, screen_h):
-        h1 = random.randint(int(screen_h * 0.05), int(screen_h * 0.75))
-        h2 = random.randint(int((screen_h - h1) * 0.05),
-                             int((screen_h - h1) * 0.75))
-        return cls(upper_height=h1, lower_height=h2, position=screen_w)
+        hole_size = random.randint(int(screen_h * 0.25),
+                                   int(screen_h * 0.75))
+        h2 = random.randint(int(screen_h * 0.15), int(screen_h * 0.75))
+        h1 = screen_h - h2 - hole_size
+        return cls(upper_height=h1, lower_height=h2,
+                   hole_size=hole_size, position=screen_w)
 
     def move(self, speed):
         self.position -= speed
 
     def is_visible(self):
         return self.position + self.width >= 0
+
+    def collides_with_circle(self, center, radius):
+        (x, y) = center
+        y1 = self.upper_height
+        y2 = self.upper_height + self.hole_size
+        p = self.position
+        q = self.position + self.width
+
+        if x - radius > q or x + radius < p:
+            return False
+
+        # Helpotetaan asiaa olettamalla ympyrä neliöksi
+        if y1 > y - radius or y2 < y + radius:
+            return True
+
+        return False
 
     def render(self, screen):
         x = self.position
