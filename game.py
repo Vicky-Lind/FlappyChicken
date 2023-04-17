@@ -1,5 +1,4 @@
 import random
-
 import pygame
 
 DEFAULT_SCREEN_SIZE = (800, 450)
@@ -9,10 +8,12 @@ TEXT_COLOR = (128, 0, 0)  # dark red
 
 DEBUG = 0
 
+#-- Run main --#
 def main():
     game = Game()
     game.run()
 
+#-- Main game --#
 class Game:
     def __init__(self):
         pygame.init()
@@ -243,7 +244,7 @@ class Game:
 
         pygame.display.flip()
 
-
+#-- Obstacles --#
 class Obstacle:
     def __init__(self, position, upper_height, lower_height,
                  hole_size, width=100):
@@ -294,6 +295,6 @@ class Obstacle:
         lh = self.lower_height
         pygame.draw.rect(screen, self.color, (x, ly, self.width, lh))
 
-
+#-- RUN MAIN --#
 if __name__ == "__main__":
     main()
