@@ -7,6 +7,7 @@
 </div>
 A Pygame, like Flappy Bird.
 
+![Image of game](image.png)
 <br>
 Links for the future..
 
